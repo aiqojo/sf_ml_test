@@ -9,7 +9,7 @@ from pathlib import Path
 def get_session_from_config(config_path=None):
     """Load Snowflake session from config.toml"""
     if config_path is None:
-        config_path = Path(__file__).parent.parent / ".snowflake" / "config.toml"
+        config_path = Path(__file__).parent.parent.parent / ".snowflake" / "config.toml"
     
     with open(config_path, "rb") as f:
         config = tomli.load(f)

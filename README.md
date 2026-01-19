@@ -7,7 +7,7 @@ Utilities for submitting and monitoring Snowflake ML Jobs.
 ### 1. Setup
 
 ```python
-from setup import get_session_from_config, ensure_compute_pool_ready, ensure_stage_exists
+from utils.setup import get_session_from_config, ensure_compute_pool_ready, ensure_stage_exists
 from snowflake.ml.jobs import remote
 
 session, session_params = get_session_from_config()
@@ -33,7 +33,7 @@ def my_job():
 ### 3. Submit and Monitor
 
 ```python
-from job_debug import wait_for_job, show_job_logs, handle_job_result, diagnose_job_failure
+from utils.job_debug import wait_for_job, show_job_logs, handle_job_result, diagnose_job_failure
 
 try:
     job = my_job()
@@ -44,15 +44,21 @@ except Exception as e:
     diagnose_job_failure(e, session, session_params)
 ```
 
+## Project Structure
+
+- `src/jobs/` - Job submission scripts
+- `src/utils/` - Utility modules (setup, debugging, logging)
+- `logs/` - Job log files (gitignored)
+
 ## Utilities
 
-### Setup (`setup.py`)
+### Setup (`utils/setup.py`)
 
 - **`get_session_from_config(config_path=None)`** - Loads Snowflake session from `.snowflake/config.toml`
 - **`ensure_compute_pool_ready(session, target_pool, max_wait=60)`** - Ensures compute pool is `IDLE` or `RUNNING` (auto-resumes if `SUSPENDED`)
 - **`ensure_stage_exists(session, stage_name)`** - Creates stage if it doesn't exist
 
-### Debug/Logging (`job_debug.py`)
+### Debug/Logging (`utils/job_debug.py`)
 
 - **`wait_for_job(job, timeout=300)`** - Waits for job completion, handles timeouts gracefully
 - **`show_job_logs(job, tail_chars=6000)`** - Prints tail of container logs
@@ -68,4 +74,4 @@ except Exception as e:
 
 ## Example
 
-See `src/test_submit_job.py` for a complete example.
+See `src/jobs/test_submit_job.py` for a complete example.

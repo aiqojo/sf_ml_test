@@ -1,12 +1,12 @@
 """Submit a simple ML job to Snowflake"""
 
 from snowflake.ml.jobs import remote
-from setup import (
+from utils.setup import (
     get_session_from_config,
     ensure_compute_pool_ready,
     ensure_stage_exists,
 )
-from job_debug import (
+from utils.job_debug import (
     wait_for_job,
     show_job_logs,
     handle_job_result,

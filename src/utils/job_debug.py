@@ -50,7 +50,7 @@ def show_job_logs(job, tail_chars=10000):
         logs = job.get_logs(verbose=True) or ""
         if logs:
             # Create logs directory
-            logs_dir = Path(__file__).parent.parent / "logs"
+            logs_dir = Path(__file__).parent.parent.parent / "logs"
             logs_dir.mkdir(exist_ok=True)
             
             # Generate filename from job ID and timestamp
