@@ -35,9 +35,8 @@ try:
     job = hello()
     print(f"✓ Job created successfully! Job ID: {job.id}")
     
-    final_status, timed_out = wait_for_job(job, timeout=300)
+    final_status, timed_out = wait_for_job(job, timeout=3600)
     show_job_logs(job)
     handle_job_result(job, timed_out)
-    
 except Exception as e:
     diagnose_job_failure(e, session, session_params)

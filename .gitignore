@@ -1,6 +1,7 @@
 data/
 .old/
 .snowflake/
+logs/
 
 
 # Byte-compiled / optimized / DLL files

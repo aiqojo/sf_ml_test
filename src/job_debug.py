@@ -1,39 +1,76 @@
 """Debug and logging utilities for Snowflake ML Jobs"""
 
 import re
+import time
+import traceback
+from pathlib import Path
+from datetime import datetime
 from snowflake.ml.jobs import get_job
 
 
-def wait_for_job(job, timeout=300):
-    """Wait for job completion with timeout handling"""
-    print(f"Waiting for job to complete (max {timeout}s)...")
+def wait_for_job(job, timeout, poll_interval=15):
+    """Wait for job completion with polling loop and overall timeout"""
+    print(f"Waiting for job to complete (max {timeout}s, polling every {poll_interval}s)...")
+    
+    start_time = time.time()
     timed_out = False
-    try:
-        final_status = job.wait(timeout=timeout)
-        print(f"Final status: {final_status}")
-        return final_status, timed_out
-    except Exception as timeout_err:
-        error_str = str(timeout_err)
-        if "did not complete within" in error_str or "timeout" in error_str.lower():
+    
+    while True:
+        elapsed = time.time() - start_time
+        
+        # Check overall timeout
+        if elapsed >= timeout:
             timed_out = True
-            print(f"⚠ Job still running after {timeout}s timeout")
+            print(f"\n⚠ Overall timeout ({timeout}s) reached")
             print(f"Current status: {job.status}")
             return job.status, timed_out
-        else:
-            raise
+        
+        # Check job status
+        current_status = job.status
+        
+        # Print status every poll (overwrite same line, pad to clear previous)
+        status_line = f"  [{int(elapsed)}s] Status: {current_status}"
+        # Pad with spaces to ensure full overwrite (80 chars should be enough)
+        padded_line = status_line.ljust(80)
+        print(f"\r{padded_line}", end="", flush=True)
+        
+        # Terminal states - job is done
+        if current_status in ["DONE", "FAILED", "CANCELLED"]:
+            print(f"\nFinal status: {current_status} (completed in {int(elapsed)}s)")
+            return current_status, timed_out
+        
+        # Non-terminal states - continue polling
+        time.sleep(poll_interval)
 
 
-def show_job_logs(job, tail_chars=6000):
-    """Show tail of job logs"""
-    print(f"\n=== Job Logs (tail) ===")
+def show_job_logs(job, tail_chars=10000):
+    """Save job logs to file and show summary"""
+    print(f"\n=== Job Logs ===")
     try:
         logs = job.get_logs(verbose=True) or ""
         if logs:
-            print(logs[-tail_chars:])  # Last N chars
+            # Create logs directory
+            logs_dir = Path(__file__).parent.parent / "logs"
+            logs_dir.mkdir(exist_ok=True)
+            
+            # Generate filename from job ID and timestamp
+            job_id = job.id.split(".")[-1] if "." in job.id else job.id
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = logs_dir / f"{job_id}_{timestamp}.log"
+            
+            # Write full logs to file
+            with open(log_file, "w") as f:
+                f.write(logs)
+            
+            # Show summary in console
+            log_lines = logs.split("\n")
+            print(f"✓ Logs saved to: {log_file}")
+            print(f"  Total lines: {len(log_lines)}")
         else:
             print("No logs available")
     except Exception as log_err:
-        print(f"Could not get logs: {log_err}")
+        print(f"✗ Could not get logs: {log_err}")
+        print(f"Traceback: {traceback.format_exc()}")
 
 
 def handle_job_result(job, timed_out=False):
@@ -45,7 +82,8 @@ def handle_job_result(job, timed_out=False):
             print(f"Result: {result}")
             return result
         except Exception as result_err:
-            print(f"Could not get result: {result_err}")
+            print(f"✗ Could not get result: {result_err}")
+            print(f"Traceback: {traceback.format_exc()}")
             return None
     elif job.status == "FAILED":
         print(f"\n✗ Job failed - check logs above for details")
@@ -87,6 +125,9 @@ def diagnose_job_failure(error, session, session_params):
             else:
                 print("  No logs available yet")
         except Exception as job_err:
+            print(f"  ✗ Failed to get job via API: {job_err}")
+            print(f"  Traceback: {traceback.format_exc()}")
+            
             # Try SQL-based job history query
             try:
                 job_history = session.sql(f"""
@@ -109,7 +150,8 @@ def diagnose_job_failure(error, session, session_params):
                 else:
                     print(f"  Job not found in history yet")
             except Exception as hist_err:
-                print(f"  Could not query job history: {hist_err}")
+                print(f"  ✗ Could not query job history: {hist_err}")
+                print(f"  Traceback: {traceback.format_exc()}")
             
             # Try container logs
             try:
@@ -129,9 +171,10 @@ def diagnose_job_failure(error, session, session_params):
                         timestamp = log_row["TIMESTAMP"] if "TIMESTAMP" in log_row else ""
                         print(f"  [{timestamp}] {log_msg}")
             except Exception as log_err:
+                print(f"  ✗ Could not get container logs: {log_err}")
                 if "insufficient privileges" in str(log_err).lower():
                     print(f"  Need MONITOR privilege to read logs")
                 else:
-                    print(f"  Could not get container logs: {log_err}")
+                    print(f"  Traceback: {traceback.format_exc()}")
         
         print(f"\n  Check Snowflake UI: Compute → Jobs → {job_id}")
