@@ -21,10 +21,7 @@ from utils.job_debug import (
     handle_job_result,
     diagnose_job_failure,
 )
-from utils.stage_utils import (
-    download_from_stage,
-    download_from_stage_stream,
-)
+from utils.artifact_utils import download_job_artifacts
 
 # Setup
 session, session_params = get_session_from_config()
@@ -236,26 +233,13 @@ try:
     if result and "png_stage_path" in result:
         print("\n=== Downloading artifacts ===")
         artifacts_dir = Path(__file__).parent.parent.parent / "artifacts"
-        artifacts_dir.mkdir(exist_ok=True)
-        
-        # Download PNG
-        stage_path = result["png_stage_path"]
-        filename = stage_path.split("/")[-1]
-        png_path = download_from_stage(
+        downloaded = download_job_artifacts(
             session,
-            stage_path,
-            local_path=str(artifacts_dir / filename)
+            result,
+            artifacts_dir=artifacts_dir,
+            stage_path_keys=["png_stage_path", "csv_stage_path"]
         )
-        print(f"✓ Downloaded plot: {png_path}")
-        
-        # Download CSV
-        stage_path = result["csv_stage_path"]
-        filename = stage_path.split("/")[-1]
-        csv_path = download_from_stage(
-            session,
-            stage_path,
-            local_path=str(artifacts_dir / filename)
-        )
-        print(f"✓ Downloaded CSV: {csv_path}")
+        for key, path in downloaded.items():
+            print(f"✓ Downloaded {key}: {path}")
 except Exception as e:
     diagnose_job_failure(e, session, session_params)
