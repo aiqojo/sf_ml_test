@@ -1,0 +1,10 @@
+default_connection_name = "ML_connection"
+
+[connections.ML_connection]
+SF_CONNECTION_TYPE = "EXTERNALBROWSER"
+SNOWFLAKE_ACCOUNT = "your-account-identifier"
+SNOWFLAKE_USER = "your-username@example.com"
+SNOWFLAKE_ROLE = "your-role"
+SNOWFLAKE_WAREHOUSE = "your-warehouse"
+SNOWFLAKE_DATABASE = "your-database"
+SNOWFLAKE_SCHEMA = "your-schema"

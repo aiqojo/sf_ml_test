@@ -10,7 +10,8 @@ from snowflake.ml.jobs import get_job
 
 def wait_for_job(job, timeout, poll_interval=15):
     """Wait for job completion with polling loop and overall timeout"""
-    print(f"Waiting for job to complete (max {timeout}s, polling every {poll_interval}s)...")
+    print(f"✓ Job created successfully! Job ID: {job.id}")
+    print(f"Waiting for job to complete (timeout at {timeout}s, polling every {poll_interval}s)...")
     
     start_time = time.time()
     timed_out = False
@@ -28,7 +29,7 @@ def wait_for_job(job, timeout, poll_interval=15):
         # Check job status
         current_status = job.status
         
-        # Print status every poll (overwrite same line, pad to clear previous)
+        # print status every poll (overwrite same line, pad to clear previous)
         status_line = f"  [{int(elapsed)}s] Status: {current_status}"
         # Pad with spaces to ensure full overwrite (80 chars should be enough)
         padded_line = status_line.ljust(80)

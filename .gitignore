@@ -1,8 +1,8 @@
 data/
 .old/
-.snowflake/
+.snowflake/config.toml
 logs/
-
+artifacts/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

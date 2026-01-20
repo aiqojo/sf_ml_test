@@ -5,7 +5,6 @@ import tomli
 import time
 from pathlib import Path
 
-
 def get_session_from_config(config_path=None):
     """Load Snowflake session from config.toml"""
     if config_path is None:
@@ -26,6 +25,8 @@ def get_session_from_config(config_path=None):
     }
     
     session = Session.builder.configs(session_params).getOrCreate()
+    print(f"✓ Connected to Snowflake")
+    print(f"  Version: {session.sql('select current_version()').collect()[0][0]}")
     return session, session_params
 
 

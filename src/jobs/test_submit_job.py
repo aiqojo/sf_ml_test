@@ -1,5 +1,13 @@
 """Submit a simple ML job to Snowflake"""
 
+import sys
+from pathlib import Path
+
+# Add src directory to Python path so imports work regardless of where script is run
+src_dir = Path(__file__).parent.parent
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
 from snowflake.ml.jobs import remote
 from utils.setup import (
     get_session_from_config,
@@ -15,8 +23,6 @@ from utils.job_debug import (
 
 # Setup
 session, session_params = get_session_from_config()
-print(f"✓ Connected to Snowflake")
-print(f"  Version: {session.sql('select current_version()').collect()[0][0]}")
 
 compute_pool = "ML_SANDBOX_TEST"
 stage_name = "AI_ML.ML.STAGE_ML_SANDBOX_TEST"
@@ -33,7 +39,6 @@ def hello():
 print("\n=== Submitting job ===")
 try:
     job = hello()
-    print(f"✓ Job created successfully! Job ID: {job.id}")
     
     final_status, timed_out = wait_for_job(job, timeout=3600)
     show_job_logs(job)

@@ -61,7 +61,7 @@ except Exception as e:
 ### Debug/Logging (`utils/job_debug.py`)
 
 - **`wait_for_job(job, timeout=300)`** - Waits for job completion, handles timeouts gracefully
-- **`show_job_logs(job, tail_chars=6000)`** - Prints tail of container logs
+- **`show_job_logs(job, tail_chars=6000)`** - prints tail of container logs
 - **`handle_job_result(job, timed_out=False)`** - Processes result based on status (`DONE`, `FAILED`, etc.)
 - **`diagnose_job_failure(error, session, session_params)`** - Detailed failure diagnostics (permissions, job history, container logs)
 
