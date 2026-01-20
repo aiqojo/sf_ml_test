@@ -9,9 +9,17 @@ from snowflake.ml.jobs import get_job
 
 
 def wait_for_job(job, timeout, poll_interval=15):
-    """Wait for job completion with polling loop and overall timeout"""
+    """Wait for job completion with polling loop and overall timeout.
+    Downloads logs during polling and at completion."""
     print(f"✓ Job created successfully! Job ID: {job.id}")
     print(f"Waiting for job to complete (timeout at {timeout}s, polling every {poll_interval}s)...")
+    
+    # Generate log filename at start (timestamp first for chronological sorting)
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    job_id = job.id.split(".")[-1] if "." in job.id else job.id
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = logs_dir / f"{timestamp}_{job_id}.log"
     
     start_time = time.time()
     timed_out = False
@@ -24,42 +32,89 @@ def wait_for_job(job, timeout, poll_interval=15):
             timed_out = True
             print(f"\n⚠ Overall timeout ({timeout}s) reached")
             print(f"Current status: {job.status}")
+            # Download final logs before returning
+            _download_logs(job, log_file)
             return job.status, timed_out
         
         # Check job status
         current_status = job.status
         
+        # Download logs during polling (overwrites previous)
+        log_size = _download_logs(job, log_file)
+        
+        # Add status description for clarity
+        status_desc = {
+            "PENDING": "queued",
+            "RUNNING": "executing",
+            "DONE": "completed",
+            "FAILED": "failed",
+            "CANCELLED": "cancelled"
+        }.get(current_status, current_status.lower())
+        
+        # Shorten log filename for display (just show job ID part)
+        log_display = log_file.stem  # filename without .log extension
+        if "_" in log_display:
+            # Extract just the job ID part (last part after all underscores)
+            parts = log_display.split("_")
+            if len(parts) >= 2:
+                log_display = parts[-1]  # Just the job ID (last part)
+        log_info = f"{log_display}.log" if log_size > 0 else f"{log_display}..."
+        
         # print status every poll (overwrite same line, pad to clear previous)
-        status_line = f"  [{int(elapsed)}s] Status: {current_status}"
-        # Pad with spaces to ensure full overwrite (80 chars should be enough)
-        padded_line = status_line.ljust(80)
+        status_line = f"  [{int(elapsed)}s] {current_status} ({status_desc}) | log: {log_info}"
+        # Pad with spaces to ensure full overwrite (120 chars to handle long lines)
+        padded_line = status_line.ljust(120)
         print(f"\r{padded_line}", end="", flush=True)
         
         # Terminal states - job is done
         if current_status in ["DONE", "FAILED", "CANCELLED"]:
             print(f"\nFinal status: {current_status} (completed in {int(elapsed)}s)")
+            # Download final logs
+            _download_logs(job, log_file)
             return current_status, timed_out
         
         # Non-terminal states - continue polling
         time.sleep(poll_interval)
 
 
-def show_job_logs(job, tail_chars=10000):
-    """Save job logs to file and show summary"""
+def _download_logs(job, log_file):
+    """Helper to download job logs to file (overwrites existing).
+    Returns the size of logs written (0 if none)."""
+    try:
+        logs = job.get_logs(verbose=True) or ""
+        if logs:
+            with open(log_file, "w") as f:
+                f.write(logs)
+            return len(logs)
+        return 0
+    except Exception as e:
+        # Log first failure, but don't spam - only print once per unique error
+        # This helps debug if logs aren't downloading
+        if not hasattr(_download_logs, '_last_error') or _download_logs._last_error != str(e):
+            _download_logs._last_error = str(e)
+            # Only print if it's not a "no logs yet" type error
+            if "not found" not in str(e).lower() and "not available" not in str(e).lower():
+                print(f"\n⚠ Could not download logs during polling: {e}")
+        return 0
+
+
+def show_job_logs(job, tail_chars=10000, log_file=None):
+    """Save job logs to file and show summary.
+    If log_file is provided, will download fresh logs to that file.
+    Otherwise, generates a new filename."""
     print(f"\n=== Job Logs ===")
     try:
         logs = job.get_logs(verbose=True) or ""
         if logs:
-            # Create logs directory
-            logs_dir = Path(__file__).parent.parent.parent / "logs"
-            logs_dir.mkdir(exist_ok=True)
+            # Use provided log_file or generate new one (timestamp first for chronological sorting)
+            if log_file is None:
+                logs_dir = Path(__file__).parent.parent.parent / "logs"
+                logs_dir.mkdir(exist_ok=True)
+                job_id = job.id.split(".")[-1] if "." in job.id else job.id
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_file = logs_dir / f"{timestamp}_{job_id}.log"
             
-            # Generate filename from job ID and timestamp
-            job_id = job.id.split(".")[-1] if "." in job.id else job.id
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file = logs_dir / f"{job_id}_{timestamp}.log"
-            
-            # Write full logs to file
+            # Write full logs to file (overwrites if exists)
             with open(log_file, "w") as f:
                 f.write(logs)
             
@@ -67,6 +122,11 @@ def show_job_logs(job, tail_chars=10000):
             log_lines = logs.split("\n")
             print(f"✓ Logs saved to: {log_file}")
             print(f"  Total lines: {len(log_lines)}")
+            
+            # Show tail of logs if requested
+            if tail_chars > 0 and len(logs) > tail_chars:
+                print(f"\n=== Last {tail_chars} characters of logs ===")
+                print(logs[-tail_chars:])
         else:
             print("No logs available")
     except Exception as log_err:
