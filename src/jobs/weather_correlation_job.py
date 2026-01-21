@@ -225,8 +225,8 @@ print("\n=== Submitting weather correlation job ===")
 try:
     job = weather_correlation_analysis()
     
-    final_status, timed_out = wait_for_job(job, timeout=3600)
-    show_job_logs(job)
+    final_status, timed_out, log_file = wait_for_job(job, timeout=3600)
+    show_job_logs(job, log_file=log_file)
     result = handle_job_result(job, timed_out)
     
     # Download artifacts if job succeeded

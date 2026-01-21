@@ -34,7 +34,7 @@ def wait_for_job(job, timeout, poll_interval=15):
             print(f"Current status: {job.status}")
             # Download final logs before returning
             _download_logs(job, log_file)
-            return job.status, timed_out
+            return job.status, timed_out, log_file
         
         # Check job status
         current_status = job.status
@@ -71,7 +71,7 @@ def wait_for_job(job, timeout, poll_interval=15):
             print(f"\nFinal status: {current_status} (completed in {int(elapsed)}s)")
             # Download final logs
             _download_logs(job, log_file)
-            return current_status, timed_out
+            return current_status, timed_out, log_file
         
         # Non-terminal states - continue polling
         time.sleep(poll_interval)

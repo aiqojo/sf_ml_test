@@ -40,8 +40,8 @@ print("\n=== Submitting job ===")
 try:
     job = hello()
     
-    final_status, timed_out = wait_for_job(job, timeout=3600)
-    show_job_logs(job)
+    final_status, timed_out, log_file = wait_for_job(job, timeout=3600)
+    show_job_logs(job, log_file=log_file)
     handle_job_result(job, timed_out)
 except Exception as e:
     diagnose_job_failure(e, session, session_params)

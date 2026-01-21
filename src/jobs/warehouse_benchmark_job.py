@@ -57,8 +57,8 @@ def warehouse_benchmark():
     
     # Use weather_historical table - 8 billion rows, so we must be careful with limits
     # HARD LIMIT: Maximum rows to process in any single operation
-    MAX_QUERY_ROWS = 100000
-    MAX_TABLE_ROWS = MAX_QUERY_ROWS * 5
+    MAX_QUERY_ROWS = 10000000
+    MAX_TABLE_ROWS = MAX_QUERY_ROWS * 10
     
     results = {
         "timestamp": datetime.now().isoformat(),
@@ -344,8 +344,8 @@ print("\n=== Submitting warehouse benchmark job ===")
 try:
     job = warehouse_benchmark()
     
-    final_status, timed_out = wait_for_job(job, timeout=3600)
-    show_job_logs(job)
+    final_status, timed_out, log_file = wait_for_job(job, timeout=3600)
+    show_job_logs(job, log_file=log_file)
     result = handle_job_result(job, timed_out)
     
     # Download artifacts if job succeeded
