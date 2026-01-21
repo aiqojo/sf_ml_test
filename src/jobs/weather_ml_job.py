@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# Add src directory to path so we can import utils
 src_dir = Path(__file__).parent.parent
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
@@ -14,7 +13,6 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col, datediff, current_timestamp
 import pandas as pd
 
-# Import utilities
 from utils.snowflake.stage_utils import save_image_to_stage, save_dataframe_to_stage
 from utils.plotting.plot_utils import create_correlation_heatmap, calculate_correlation_summary_stats
 
@@ -54,15 +52,13 @@ def prepare_features(df: pd.DataFrame):
     """
     print("Preparing features by pivoting weather variables...")
     
-    # Pivot: MSRMT_TIME as index, VARIABLE as columns, VALUE as values
     weather_pivot = df.pivot_table(
         index='MSRMT_TIME',
         columns='VARIABLE',
         values='VALUE',
-        aggfunc='mean'  # Average if multiple values for same time/variable
+        aggfunc='mean'
     )
     
-    # Remove columns/rows with all NaN
     weather_pivot = weather_pivot.dropna(axis=1, how='all').dropna(axis=0, how='all')
     
     print(f"Features prepared: {len(weather_pivot)} time points, {len(weather_pivot.columns)} variables")
@@ -83,20 +79,16 @@ def simple_baseline_ml(features_df: pd.DataFrame):
     """
     print("Running baseline ML analysis...")
     
-    # Calculate correlation matrix
     correlation_matrix = features_df.corr()
     
-    # Calculate summary statistics
     summary_stats = calculate_correlation_summary_stats(correlation_matrix)
     
-    # Basic feature statistics
     feature_stats = features_df.describe().to_dict()
     
-    # Find strongest correlations (excluding self-correlations)
     correlations_flat = []
     for i, var1 in enumerate(correlation_matrix.columns):
         for j, var2 in enumerate(correlation_matrix.columns):
-            if i != j:  # Exclude diagonal
+            if i != j:
                 correlations_flat.append({
                     'variable1': var1,
                     'variable2': var2,
@@ -135,16 +127,13 @@ def main(data_table: str, days_back: int = 30, limit: int = 10000, stage_name: s
     print("Weather ML Baseline Job")
     print("=" * 60)
     
-    # Get session from context
     session = Session.builder.getOrCreate()
     
-    # Load data
     weather_df = load_weather_data(session, data_table, days_back, limit)
     
     if weather_df.empty:
         return {"error": "No weather data found", "data_table": data_table}
     
-    # Prepare features
     features_df = prepare_features(weather_df)
     
     if features_df.empty or len(features_df.columns) < 2:
@@ -153,18 +142,14 @@ def main(data_table: str, days_back: int = 30, limit: int = 10000, stage_name: s
             "variables_found": list(features_df.columns) if not features_df.empty else []
         }
     
-    # Run baseline ML
     results = simple_baseline_ml(features_df)
     
-    # Generate timestamp for filenames
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # Save outputs to stage if provided
     outputs = {}
     if stage_name:
         print(f"\nSaving outputs to stage: {stage_name}")
         
-        # Save correlation heatmap
         heatmap_buf = create_correlation_heatmap(
             results['correlation_matrix'],
             title=f"Weather Variable Correlations ({timestamp})"
@@ -179,7 +164,6 @@ def main(data_table: str, days_back: int = 30, limit: int = 10000, stage_name: s
         outputs['correlation_plot'] = png_path
         print(f"  Saved correlation plot: {png_path}")
         
-        # Save correlation matrix CSV
         csv_path = save_dataframe_to_stage(
             session,
             results['correlation_matrix'],
@@ -190,7 +174,6 @@ def main(data_table: str, days_back: int = 30, limit: int = 10000, stage_name: s
         outputs['correlation_csv'] = csv_path
         print(f"  Saved correlation matrix: {csv_path}")
         
-        # Save top correlations CSV
         top_corr_path = save_dataframe_to_stage(
             session,
             results['top_correlations'],
@@ -201,7 +184,6 @@ def main(data_table: str, days_back: int = 30, limit: int = 10000, stage_name: s
         outputs['top_correlations_csv'] = top_corr_path
         print(f"  Saved top correlations: {top_corr_path}")
     
-    # Prepare return value
     return {
         "status": "success",
         "timestamp": timestamp,
@@ -223,7 +205,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Execute main function and return result
     __return__ = main(
         data_table=args.data_table,
         days_back=args.days_back,

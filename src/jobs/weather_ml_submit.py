@@ -3,14 +3,12 @@
 import sys
 from pathlib import Path
 
-# Add src directory to Python path so imports work
 src_dir = Path(__file__).parent.parent
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 from utils.snowflake.job_submit_utils import submit_directory_job
 
-# Submit the job using the utility function
 result = submit_directory_job(
     dir_path=str(src_dir),
     entrypoint="jobs/weather_ml_job.py",
@@ -20,9 +18,6 @@ result = submit_directory_job(
         "--limit", "10000",
         "--stage-name", "AI_ML.ML.STAGE_ML_SANDBOX_TEST",
     ],
-    # Optional: add pip packages if needed
-    # pip_requirements=["scikit-learn>=1.0.0"],
-    # external_access_integrations=["PYPI_EAI"],
 )
 
 print(f"\n=== Job Summary ===")

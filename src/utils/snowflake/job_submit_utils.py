@@ -73,25 +73,20 @@ def submit_directory_job(
         print(f"Job {result['job_id']} completed with status {result['status']}")
         ```
     """
-    # Setup session if not provided
     if session is None:
         session, session_params = get_session_from_config()
     elif session_params is None:
-        # If session provided but not params, create empty dict
         session_params = {}
     
-    # Auto-setup compute pool and stage
     if auto_setup:
         print(f"Ensuring compute pool '{compute_pool}' is ready...")
         ensure_compute_pool_ready(session, compute_pool)
         print(f"Ensuring stage '{stage_name}' exists...")
         ensure_stage_exists(session, stage_name)
     
-    # Prepare args
     if args is None:
         args = []
     
-    # Submit directory
     print(f"\n=== Submitting directory job ===")
     print(f"Directory: {dir_path}")
     print(f"Entrypoint: {entrypoint}")
@@ -116,32 +111,25 @@ def submit_directory_job(
         
         print(f"Job submitted: {job.id}")
         
-        # Wait for job to complete
         final_status, timed_out, log_file = wait_for_job(job, timeout=timeout)
         show_job_logs(job, log_file=log_file)
         result = handle_job_result(job, timed_out)
         
-        # Download artifacts if requested and available
         artifacts = {}
         if download_artifacts and result:
-            # Determine artifact keys
             if artifact_keys is None:
-                # Default: look for "outputs" dict
                 if "outputs" in result and result["outputs"]:
                     artifact_data = result["outputs"]
                     artifact_keys = list(artifact_data.keys())
                 else:
-                    # Fallback: look for common keys
                     artifact_keys = [k for k in result.keys() if k.endswith("_stage_path") or k.endswith("_path")]
                     artifact_data = {k: result[k] for k in artifact_keys if k in result}
             else:
-                # Use provided keys
                 artifact_data = {k: result.get(k) for k in artifact_keys if result.get(k)}
             
             if artifact_data:
                 print("\n=== Downloading artifacts ===")
                 if artifacts_dir is None:
-                    # Default to artifacts directory in project root
                     artifacts_dir = get_repo_root() / "artifacts"
                 
                 downloaded = download_job_artifacts(

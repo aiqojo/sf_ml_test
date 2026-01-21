@@ -29,13 +29,10 @@ def save_image_to_stage(
     Returns:
         Stage path string (e.g., "@AI_ML.ML.STAGE_ML_SANDBOX_TEST/output/plot.png")
     """
-    # Ensure BytesIO is at the beginning
     image_bytes.seek(0)
     
-    # Construct stage path
     stage_path = f"@{stage_name}/{subdirectory}/{filename}"
     
-    # Upload to stage
     session.file.put_stream(
         image_bytes,
         stage_path,
@@ -111,7 +108,6 @@ def save_dataframe_to_stage(
         csv_data = df.to_csv(index=True)
         return save_csv_to_stage(session, csv_data, filename, stage_name, subdirectory, overwrite)
     elif format.lower() == "parquet":
-        # For Parquet, we need to use BytesIO with pyarrow
         try:
             import pyarrow as pa
             import pyarrow.parquet as pq
@@ -128,7 +124,7 @@ def save_dataframe_to_stage(
             buffer,
             stage_path,
             overwrite=overwrite,
-            auto_compress=False,  # Parquet is already compressed
+            auto_compress=False,
         )
         return stage_path
     else:
@@ -154,23 +150,18 @@ def download_from_stage(
     Returns:
         Path object pointing to the downloaded file
     """
-    # Extract filename from stage_path if local_path is a directory
     if local_path is None:
         local_path = "."
     
     local_path_obj = Path(local_path)
     
-    # If it's a directory or doesn't have an extension, extract filename from stage_path
     if local_path_obj.is_dir() or not local_path_obj.suffix:
-        # Extract filename from stage_path (everything after last /)
         filename = stage_path.split("/")[-1]
         local_path_obj = local_path_obj / filename
     
-    # Create parent directories if needed
     if create_dirs:
         local_path_obj.parent.mkdir(parents=True, exist_ok=True)
     
-    # Download from stage
     session.file.get(stage_path, str(local_path_obj.parent))
     
     return local_path_obj

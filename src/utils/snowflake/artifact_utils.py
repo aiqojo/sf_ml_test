@@ -27,14 +27,11 @@ def download_job_artifacts(
         Dictionary mapping stage_path_key -> local Path of downloaded file
     """
     if artifacts_dir is None:
-        # Default to artifacts directory in project root
-        # Assumes this is called from a job file in src/jobs/
         artifacts_dir = get_repo_root() / "artifacts"
     
     artifacts_dir.mkdir(exist_ok=True)
     
     if stage_path_keys is None:
-        # Default keys to look for
         stage_path_keys = ["png_stage_path", "csv_stage_path"]
     
     downloaded = {}

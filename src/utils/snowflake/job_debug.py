@@ -15,7 +15,6 @@ def wait_for_job(job, timeout, poll_interval=15):
     print(f"✓ Job created successfully! Job ID: {job.id}")
     print(f"Waiting for job to complete (timeout at {timeout}s, polling every {poll_interval}s)...")
     
-    # Generate log filename at start (timestamp first for chronological sorting)
     logs_dir = get_repo_root() / "logs"
     logs_dir.mkdir(exist_ok=True)
     job_id = job.id.split(".")[-1] if "." in job.id else job.id
@@ -28,44 +27,33 @@ def wait_for_job(job, timeout, poll_interval=15):
     while True:
         elapsed = time.time() - start_time
         
-        # Check overall timeout
         if elapsed >= timeout:
             timed_out = True
             print(f"\n⚠ Overall timeout ({timeout}s) reached")
             print(f"Current status: {job.status}")
-            # Download final logs before returning
             _download_logs(job, log_file)
             return job.status, timed_out, log_file
         
-        # Check job status
         current_status = job.status
         
-        # Download logs during polling (overwrites previous)
         log_size = _download_logs(job, log_file)
         
-        # Shorten log filename for display (just show job ID part)
-        log_display = log_file.stem  # filename without .log extension
+        log_display = log_file.stem
         if "_" in log_display:
-            # Extract just the job ID part (last part after all underscores)
             parts = log_display.split("_")
             if len(parts) >= 2:
-                log_display = parts[-1]  # Just the job ID (last part)
+                log_display = parts[-1]
         log_info = f"{log_display}.log" if log_size > 0 else f"{log_display}..."
         
-        # print status every poll (overwrite same line, pad to clear previous)
         status_line = f"  [{int(elapsed)}s] {current_status} | log: {log_info}"
-        # Pad with spaces to ensure full overwrite (120 chars to handle long lines)
         padded_line = status_line.ljust(120)
         print(f"\r{padded_line}", end="", flush=True)
         
-        # Terminal states - job is done
         if current_status in ["DONE", "FAILED", "CANCELLED"]:
             print(f"\nFinal status: {current_status} (completed in {int(elapsed)}s)")
-            # Download final logs
             _download_logs(job, log_file)
             return current_status, timed_out, log_file
         
-        # Non-terminal states - continue polling
         time.sleep(poll_interval)
 
 
@@ -80,11 +68,8 @@ def _download_logs(job, log_file):
             return len(logs)
         return 0
     except Exception as e:
-        # Log first failure, but don't spam - only print once per unique error
-        # This helps debug if logs aren't downloading
         if not hasattr(_download_logs, '_last_error') or _download_logs._last_error != str(e):
             _download_logs._last_error = str(e)
-            # Only print if it's not a "no logs yet" type error
             if "not found" not in str(e).lower() and "not available" not in str(e).lower():
                 print(f"\n⚠ Could not download logs during polling: {e}")
         return 0
@@ -98,7 +83,6 @@ def show_job_logs(job, tail_chars=10000, log_file=None):
     try:
         logs = job.get_logs(verbose=True) or ""
         if logs:
-            # Use provided log_file or generate new one (timestamp first for chronological sorting)
             if log_file is None:
                 logs_dir = get_repo_root() / "logs"
                 logs_dir.mkdir(exist_ok=True)
@@ -106,16 +90,13 @@ def show_job_logs(job, tail_chars=10000, log_file=None):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 log_file = logs_dir / f"{timestamp}_{job_id}.log"
             
-            # Write full logs to file (overwrites if exists)
             with open(log_file, "w") as f:
                 f.write(logs)
             
-            # Show summary in console
             log_lines = logs.split("\n")
             print(f"✓ Logs saved to: {log_file}")
             print(f"  Total lines: {len(log_lines)}")
             
-            # Show tail of logs if requested
             if tail_chars > 0 and len(logs) > tail_chars:
                 print(f"\n=== Last {tail_chars} characters of logs ===")
                 print(logs[-tail_chars:])
@@ -142,7 +123,6 @@ def handle_job_result(job, timed_out=False):
         print(f"\n✗ Job failed - check logs above for details")
         return None
     else:
-        # Timeout or still running - not a failure, just incomplete
         print(f"\n⚠ Job status: {job.status}")
         if timed_out:
             print(f"  Job will continue running - check Snowflake UI for final status")
@@ -159,7 +139,6 @@ def diagnose_job_failure(error, session, session_params):
     
     print(f"\n✗ Job creation failed: {error_msg[:200]}...")
     
-    # Check if it's a permission error
     if "insufficient privileges" in error_msg.lower() or "access control" in error_msg.lower():
         print(f"\n  ⚠ Permission error detected!")
         role = session_params.get("role") if session_params else None
@@ -169,7 +148,6 @@ def diagnose_job_failure(error, session, session_params):
     if job_id:
         print(f"\n  Job ID: {job_id}")
         
-        # Try to get job status using correct API
         try:
             job_obj = get_job(job_id, session=session)
             print(f"  ✓ Job exists! Status: {job_obj.status}")
@@ -183,7 +161,6 @@ def diagnose_job_failure(error, session, session_params):
             print(f"  ✗ Failed to get job via API: {job_err}")
             print(f"  Traceback: {traceback.format_exc()}")
             
-            # Try SQL-based job history query
             try:
                 job_history = session.sql(f"""
                     SELECT name, status, message, created_time, completed_time
@@ -208,7 +185,6 @@ def diagnose_job_failure(error, session, session_params):
                 print(f"  ✗ Could not query job history: {hist_err}")
                 print(f"  Traceback: {traceback.format_exc()}")
             
-            # Try container logs
             try:
                 logs_query = f"""
                 SELECT *

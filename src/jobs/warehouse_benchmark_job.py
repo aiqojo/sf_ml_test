@@ -5,7 +5,6 @@ from pathlib import Path
 import json
 from datetime import datetime
 
-# Add src directory to Python path so imports work regardless of where script is run
 src_dir = Path(__file__).parent.parent
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
@@ -25,7 +24,6 @@ from utils.snowflake.job_debug import (
 )
 from utils.snowflake.artifact_utils import download_job_artifacts
 
-# Setup
 session, session_params = get_session_from_config()
 
 compute_pool = "ML_SANDBOX_TEST"
@@ -34,7 +32,6 @@ stage_name = "AI_ML.ML.STAGE_ML_SANDBOX_TEST"
 ensure_stage_exists(session, stage_name)
 ensure_compute_pool_ready(session, compute_pool)
 
-# Define remote function
 @remote(compute_pool, stage_name=stage_name, session=session, database="AI_ML", schema="ML")
 def warehouse_benchmark():
     """
@@ -50,13 +47,12 @@ def warehouse_benchmark():
     import time
     import json
     
-    # Get session from context
     session = Session.builder.getOrCreate()
     
     stage_name = "AI_ML.ML.STAGE_ML_SANDBOX_TEST"
     
-    # Use weather_historical table - 8 billion rows, so we must be careful with limits
-    # HARD LIMIT: Maximum rows to process in any single operation
+    # Use weather_historical table - 8 billion rows, so we must be careful with limits.
+    # HARD LIMIT: Maximum rows to process in any single operation.
     MAX_QUERY_ROWS = 10000000
     MAX_TABLE_ROWS = MAX_QUERY_ROWS * 10
     
@@ -68,15 +64,12 @@ def warehouse_benchmark():
         "max_table_rows": MAX_TABLE_ROWS,
         "tests": {}
     }
-    # Get a tiny sample - limit immediately to avoid any large scans
-    # NO DATE FILTERS - they cause massive scans even with limits
-    # HARD LIMIT: Initial table limited to MAX_TABLE_ROWS, queries limited to MAX_QUERY_ROWS
+    # NO DATE FILTERS - they cause massive scans even with limits.
+    # HARD LIMIT: Initial table limited to MAX_TABLE_ROWS, queries limited to MAX_QUERY_ROWS.
     weather_df = session.table("DWH_DEV.PSUPPLY.WEATHER_HISTORICAL").limit(MAX_TABLE_ROWS)
     
-    # Test 1: Simple scan with hard limit
     print("Test 1: Simple scan with hard limit...")
     start = time.time()
-    # Just count the sampled data - no date filter to avoid scans
     limited_df = weather_df.limit(MAX_QUERY_ROWS)
     row_count = limited_df.count()
     elapsed = time.time() - start
@@ -87,10 +80,8 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Scanned {row_count} rows in {elapsed:.3f}s")
     
-    # Test 2: Filtered scan
     print("Test 2: Filtered scan...")
     start = time.time()
-    # Simple filter on sampled data - no date filter to avoid scans
     filtered_df = weather_df.filter(col("VARIABLE").is_not_null()).limit(MAX_QUERY_ROWS)
     filtered_count = filtered_df.count()
     elapsed = time.time() - start
@@ -101,10 +92,8 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Filtered to {filtered_count} rows in {elapsed:.3f}s")
     
-    # Test 3: Aggregation on limited subset
     print("Test 3: Aggregation (min/max/avg)...")
     start = time.time()
-    # Use sampled data directly - already limited
     sample_for_agg = weather_df.limit(MAX_QUERY_ROWS)
     agg_df = sample_for_agg.agg(
         sf_min(col("LAT")).alias("min_lat"),
@@ -130,10 +119,8 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Aggregation completed in {elapsed:.3f}s")
     
-    # Test 4: Group by aggregation
     print("Test 4: Group by aggregation...")
     start = time.time()
-    # Use sampled data directly
     sample_for_group = weather_df.limit(MAX_QUERY_ROWS)
     grouped_df = sample_for_group.select(
         (col("LAT").cast("int")).alias("lat_bucket"),
@@ -143,7 +130,7 @@ def warehouse_benchmark():
     ).group_by("lat_bucket", "lon_bucket", "VARIABLE").agg(
         count("*").alias("count"),
         avg(col('"VALUE"')).alias("avg_value")
-    ).limit(MAX_QUERY_ROWS)  # Hard limit on groups
+    ).limit(MAX_QUERY_ROWS)
     group_count = grouped_df.count()
     elapsed = time.time() - start
     results["tests"]["group_by"] = {
@@ -153,23 +140,19 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Grouped into {group_count} groups in {elapsed:.3f}s")
     
-    # Test 5: Join operation with both sides limited
     print("Test 5: Join operation...")
     try:
         grid_points_df = session.table("DWH_DEV.PSUPPLY.WEATHER_GRID_POINTS")
-        # Hard limits on both sides - tiny datasets
-        sample_grid = grid_points_df.limit(10)  # Only 10 grid points
-        # Use sampled weather data - already limited
+        sample_grid = grid_points_df.limit(10)
         sample_weather = weather_df.limit(MAX_QUERY_ROWS)
         
         start = time.time()
-        # Join on lat/lon (exact match)
         joined = sample_grid.join(
             sample_weather,
             (sample_grid["LAT"] == sample_weather["LAT"]) & 
             (sample_grid["LON"] == sample_weather["LON"]),
             "inner"
-        ).limit(MAX_QUERY_ROWS)  # Hard limit on join results
+        ).limit(MAX_QUERY_ROWS)
         join_count = joined.count()
         elapsed = time.time() - start
         results["tests"]["join"] = {
@@ -186,15 +169,13 @@ def warehouse_benchmark():
         }
         print(f"  ✗ Join test failed: {e}")
     
-    # Test 6: Sorting with limit
     print("Test 6: Sorting...")
     start = time.time()
-    # Use sampled data directly
     sample_for_sort = weather_df.limit(MAX_QUERY_ROWS)
     sorted_df = sample_for_sort.order_by(
         col("MSRMT_TIME").desc(), 
         col('"VALUE"').desc()
-    ).limit(MAX_QUERY_ROWS)  # Hard limit
+    ).limit(MAX_QUERY_ROWS)
     sorted_count = sorted_df.count()
     elapsed = time.time() - start
     results["tests"]["sorting"] = {
@@ -204,11 +185,10 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Sorted and retrieved {sorted_count} rows in {elapsed:.3f}s")
     
-    # Test 7: Window function with limit
     print("Test 7: Window function...")
     from snowflake.snowpark.window import Window
     start = time.time()
-    sample_for_window = weather_df.limit(MAX_QUERY_ROWS)  # Use sampled data
+    sample_for_window = weather_df.limit(MAX_QUERY_ROWS)
     window_df = sample_for_window.select(
         col("MSRMT_TIME"),
         col("LAT"),
@@ -216,7 +196,7 @@ def warehouse_benchmark():
         avg(col('"VALUE"')).over(
             Window.partition_by((col("LAT").cast("int")))
         ).alias("avg_value_by_lat_bucket")
-    ).limit(MAX_QUERY_ROWS)  # Hard limit
+    ).limit(MAX_QUERY_ROWS)
     window_count = window_df.count()
     elapsed = time.time() - start
     results["tests"]["window_function"] = {
@@ -226,10 +206,9 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Window function completed on {window_count} rows in {elapsed:.3f}s")
     
-    # Test 8: Complex query (multiple operations) with limits
     print("Test 8: Complex query (multiple operations)...")
     start = time.time()
-    sample_for_complex = weather_df.limit(MAX_QUERY_ROWS)  # Use sampled data
+    sample_for_complex = weather_df.limit(MAX_QUERY_ROWS)
     complex_df = (
         sample_for_complex.filter(col("LAT").is_not_null())
         .filter(col('"VALUE"').is_not_null())
@@ -244,9 +223,9 @@ def warehouse_benchmark():
             count("*").alias("count"),
             avg(col('"VALUE"')).alias("avg_value")
         )
-        .filter(col("count") > 1)  # Lower threshold for small dataset
+        .filter(col("count") > 1)
         .order_by(col("avg_value").desc())
-        .limit(MAX_QUERY_ROWS)  # Hard limit
+        .limit(MAX_QUERY_ROWS)
     )
     complex_count = complex_df.count()
     elapsed = time.time() - start
@@ -257,15 +236,13 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Complex query returned {complex_count} rows in {elapsed:.3f}s")
     
-    # Test 9: Data write (create temp table) with limit
     print("Test 9: Data write (temp table)...")
     try:
         temp_table_name = f"TEMP_BENCHMARK_{int(time.time())}"
         start = time.time()
-        sample_for_write = weather_df.limit(MAX_QUERY_ROWS)  # Hard limit
+        sample_for_write = weather_df.limit(MAX_QUERY_ROWS)
         sample_for_write.write.mode("overwrite").save_as_table(temp_table_name, table_type="temporary")
         elapsed = time.time() - start
-        # Verify write
         verify_count = session.table(temp_table_name).count()
         results["tests"]["data_write"] = {
             "description": f"Write {MAX_QUERY_ROWS} rows to temporary table",
@@ -282,10 +259,9 @@ def warehouse_benchmark():
         }
         print(f"  ✗ Write test failed: {e}")
     
-    # Test 10: Pandas conversion with limit
     print("Test 10: Pandas conversion...")
     start = time.time()
-    sample_for_pandas = weather_df.limit(MAX_QUERY_ROWS)  # Hard limit
+    sample_for_pandas = weather_df.limit(MAX_QUERY_ROWS)
     pandas_df = sample_for_pandas.to_pandas()
     elapsed = time.time() - start
     results["tests"]["pandas_conversion"] = {
@@ -295,7 +271,6 @@ def warehouse_benchmark():
     }
     print(f"  ✓ Converted {len(pandas_df)} rows to pandas in {elapsed:.3f}s")
     
-    # Calculate total time
     total_time = sum(
         test.get("time_seconds", 0) 
         for test in results["tests"].values() 
@@ -303,7 +278,6 @@ def warehouse_benchmark():
     )
     results["total_time_seconds"] = round(total_time, 3)
     
-    # Save results to stage as JSON
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     json_filename = f"{timestamp}_benchmark_results.json"
     json_data = json.dumps(results, indent=2)
@@ -318,7 +292,6 @@ def warehouse_benchmark():
     )
     print(f"\n✓ Saved benchmark results to: {json_stage_path}")
     
-    # Print summary
     print("\n=== Benchmark Summary ===")
     print(f"Total time: {total_time:.3f}s")
     print("\nIndividual test times:")
@@ -339,7 +312,6 @@ def warehouse_benchmark():
         "json_stage_path": json_stage_path
     }
 
-# Submit and monitor job
 print("\n=== Submitting warehouse benchmark job ===")
 try:
     job = warehouse_benchmark()
@@ -348,7 +320,6 @@ try:
     show_job_logs(job, log_file=log_file)
     result = handle_job_result(job, timed_out)
     
-    # Download artifacts if job succeeded
     if result and "json_stage_path" in result:
         print("\n=== Downloading artifacts ===")
         artifacts_dir = Path(__file__).parent.parent.parent / "artifacts"
@@ -361,7 +332,6 @@ try:
         for key, path in downloaded.items():
             print(f"✓ Downloaded {key}: {path}")
         
-        # Print summary
         print("\n=== Benchmark Results Summary ===")
         print(f"Warehouse: {result.get('warehouse', 'N/A')}")
         print(f"Total time: {result.get('total_time_seconds', 'N/A')}s")

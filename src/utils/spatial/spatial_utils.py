@@ -35,7 +35,6 @@ def build_multi_point_spatial_filter(
         )
         filter_conditions.append(condition)
     
-    # Combine all conditions with OR
     combined_filter = filter_conditions[0]
     for condition in filter_conditions[1:]:
         combined_filter = combined_filter | condition
