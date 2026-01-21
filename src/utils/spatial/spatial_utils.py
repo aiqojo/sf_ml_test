@@ -1,24 +1,21 @@
 """Utilities for spatial/geographic data operations"""
 
-from typing import List, Dict, Tuple
-from snowflake.snowpark import Session
+from typing import List, Tuple, Any
 from snowflake.snowpark.functions import col, abs as sf_abs
-from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.column import Column
 import pandas as pd
 
 
 def build_multi_point_spatial_filter(
-    session: Session,
     lat_lon_pairs: List[Tuple[float, float]],
     lat_col: str = "LAT",
     lon_col: str = "LON",
     tolerance: float = 0.0001,
-) -> DataFrame:
+) -> Column:
     """
     Build a Snowpark filter condition for multiple lat/lon points using OR logic.
     
     Args:
-        session: Snowpark session (for column functions)
         lat_lon_pairs: List of (lat, lon) tuples
         lat_col: Name of latitude column
         lon_col: Name of longitude column
@@ -48,7 +45,7 @@ def build_multi_point_spatial_filter(
 
 def match_points_to_dataframe(
     df: pd.DataFrame,
-    lat_lon_pairs: List[Tuple[float, float, any]],
+    lat_lon_pairs: List[Tuple[float, float, Any]],
     lat_col: str = "LAT",
     lon_col: str = "LON",
     tolerance: float = 0.0001,

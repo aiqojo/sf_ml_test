@@ -3,7 +3,8 @@
 from pathlib import Path
 from typing import Dict, Optional, List
 from snowflake.snowpark import Session
-from utils.stage_utils import download_from_stage
+from utils.snowflake.stage_utils import download_from_stage
+from utils.path_utils import get_repo_root
 
 
 def download_job_artifacts(
@@ -28,7 +29,7 @@ def download_job_artifacts(
     if artifacts_dir is None:
         # Default to artifacts directory in project root
         # Assumes this is called from a job file in src/jobs/
-        artifacts_dir = Path(__file__).parent.parent.parent / "artifacts"
+        artifacts_dir = get_repo_root() / "artifacts"
     
     artifacts_dir.mkdir(exist_ok=True)
     

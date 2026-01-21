@@ -12,18 +12,18 @@ if str(src_dir) not in sys.path:
 
 from snowflake.ml.jobs import remote
 from snowflake.snowpark import Session
-from utils.setup import (
+from utils.snowflake.setup import (
     get_session_from_config,
     ensure_compute_pool_ready,
     ensure_stage_exists,
 )
-from utils.job_debug import (
+from utils.snowflake.job_debug import (
     wait_for_job,
     show_job_logs,
     handle_job_result,
     diagnose_job_failure,
 )
-from utils.artifact_utils import download_job_artifacts
+from utils.snowflake.artifact_utils import download_job_artifacts
 
 # Setup
 session, session_params = get_session_from_config()

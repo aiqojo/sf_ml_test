@@ -6,6 +6,7 @@ import traceback
 from pathlib import Path
 from datetime import datetime
 from snowflake.ml.jobs import get_job
+from utils.path_utils import get_repo_root
 
 
 def wait_for_job(job, timeout, poll_interval=15):
@@ -15,7 +16,7 @@ def wait_for_job(job, timeout, poll_interval=15):
     print(f"Waiting for job to complete (timeout at {timeout}s, polling every {poll_interval}s)...")
     
     # Generate log filename at start (timestamp first for chronological sorting)
-    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir = get_repo_root() / "logs"
     logs_dir.mkdir(exist_ok=True)
     job_id = job.id.split(".")[-1] if "." in job.id else job.id
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -42,15 +43,6 @@ def wait_for_job(job, timeout, poll_interval=15):
         # Download logs during polling (overwrites previous)
         log_size = _download_logs(job, log_file)
         
-        # Add status description for clarity
-        status_desc = {
-            "PENDING": "queued",
-            "RUNNING": "executing",
-            "DONE": "completed",
-            "FAILED": "failed",
-            "CANCELLED": "cancelled"
-        }.get(current_status, current_status.lower())
-        
         # Shorten log filename for display (just show job ID part)
         log_display = log_file.stem  # filename without .log extension
         if "_" in log_display:
@@ -61,7 +53,7 @@ def wait_for_job(job, timeout, poll_interval=15):
         log_info = f"{log_display}.log" if log_size > 0 else f"{log_display}..."
         
         # print status every poll (overwrite same line, pad to clear previous)
-        status_line = f"  [{int(elapsed)}s] {current_status} ({status_desc}) | log: {log_info}"
+        status_line = f"  [{int(elapsed)}s] {current_status} | log: {log_info}"
         # Pad with spaces to ensure full overwrite (120 chars to handle long lines)
         padded_line = status_line.ljust(120)
         print(f"\r{padded_line}", end="", flush=True)
@@ -108,7 +100,7 @@ def show_job_logs(job, tail_chars=10000, log_file=None):
         if logs:
             # Use provided log_file or generate new one (timestamp first for chronological sorting)
             if log_file is None:
-                logs_dir = Path(__file__).parent.parent.parent / "logs"
+                logs_dir = get_repo_root() / "logs"
                 logs_dir.mkdir(exist_ok=True)
                 job_id = job.id.split(".")[-1] if "." in job.id else job.id
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -170,7 +162,9 @@ def diagnose_job_failure(error, session, session_params):
     # Check if it's a permission error
     if "insufficient privileges" in error_msg.lower() or "access control" in error_msg.lower():
         print(f"\n  ⚠ Permission error detected!")
-        print(f"  Required: GRANT CREATE SERVICE ON SCHEMA AI_ML.ML TO ROLE {session_params['role']};")
+        role = session_params.get("role") if session_params else None
+        role_display = role if role else "<role>"
+        print(f"  Required: GRANT CREATE SERVICE ON SCHEMA AI_ML.ML TO ROLE {role_display};")
     
     if job_id:
         print(f"\n  Job ID: {job_id}")

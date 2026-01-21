@@ -1,15 +1,26 @@
 """Setup utilities for Snowflake ML Jobs"""
 
 from snowflake.snowpark import Session
+import os
 import tomli
 import time
 from pathlib import Path
+from utils.path_utils import get_repo_root
 
 def get_session_from_config(config_path=None):
-    """Load Snowflake session from config.toml"""
+    """Load Snowflake session from config.toml."""
     if config_path is None:
-        config_path = Path(__file__).parent.parent.parent / ".snowflake" / "config.toml"
-    
+        env_path = os.environ.get("SNOWFLAKE_CONFIG_FILE")
+        if env_path:
+            config_path = Path(env_path)
+        else:
+            repo_root = get_repo_root()
+            candidates = [
+                repo_root / ".snowflake" / "config.toml",
+                Path.home() / ".snowflake" / "config.toml",
+            ]
+            config_path = next((p for p in candidates if p.exists()), candidates[0])
+
     with open(config_path, "rb") as f:
         config = tomli.load(f)
         connection_params = config["connections"]["ML_connection"]

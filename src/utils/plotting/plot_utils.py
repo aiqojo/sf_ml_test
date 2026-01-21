@@ -1,7 +1,6 @@
 """Utilities for creating plots and visualizations"""
 
 from io import BytesIO
-from typing import Optional
 import pandas as pd
 import matplotlib.pyplot as plt
 

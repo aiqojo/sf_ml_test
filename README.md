@@ -4,74 +4,79 @@ Utilities for submitting and monitoring Snowflake ML Jobs.
 
 ## Quick Start
 
-### 1. Setup
+### Using `submit_directory()` (Recommended)
 
+**1. Create job entrypoint** (`src/jobs/my_job.py`):
 ```python
-from utils.setup import get_session_from_config, ensure_compute_pool_ready, ensure_stage_exists
-from snowflake.ml.jobs import remote
+import argparse
+from snowflake.snowpark import Session
 
-session, session_params = get_session_from_config()
-ensure_stage_exists(session, "AI_ML.ML.STAGE_ML_SANDBOX_TEST")
-ensure_compute_pool_ready(session, "ML_SANDBOX_TEST")
+def main(data_table: str):
+    session = Session.builder.getOrCreate()
+    df = session.table(data_table).to_pandas()
+    # Your ML code here
+    return {"status": "success"}
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-table", required=True)
+    args = parser.parse_args()
+    __return__ = main(args.data_table)
 ```
 
-### 2. Define Remote Function
-
+**2. Create submission script** (`src/jobs/my_submit.py`):
 ```python
-@remote(
-    "ML_SANDBOX_TEST",
-    stage_name="AI_ML.ML.STAGE_ML_SANDBOX_TEST",
-    session=session,
-    database="AI_ML",
-    schema="ML"
+from utils.job_submit_utils import submit_directory_job
+from pathlib import Path
+
+src_dir = Path(__file__).parent.parent
+
+result = submit_directory_job(
+    dir_path=str(src_dir),
+    entrypoint="jobs/my_job.py",
+    args=["--data-table", "MY_SCHEMA.MY_TABLE"],
+    # pip_requirements=["pandas>=2.0.0"],
 )
-def my_job():
-    # Keep function simple - avoid external module dependencies
-    return "Hello from remote job!"
 ```
 
-### 3. Submit and Monitor
+### Using `@remote` decorator (Legacy)
 
-```python
-from utils.job_debug import wait_for_job, show_job_logs, handle_job_result, diagnose_job_failure
-
-try:
-    job = my_job()
-    final_status, timed_out = wait_for_job(job, timeout=300)
-    show_job_logs(job)
-    handle_job_result(job, timed_out)
-except Exception as e:
-    diagnose_job_failure(e, session, session_params)
-```
+See `src/jobs/test_submit_job.py` for example.
 
 ## Project Structure
 
-- `src/jobs/` - Job submission scripts
-- `src/utils/` - Utility modules (setup, debugging, logging)
+- `src/jobs/` - Job scripts
+  - `*_job.py` - Job entrypoints (run remotely)
+  - `*_submit.py` - Submission scripts (run locally)
+- `src/utils/` - Utility modules
 - `logs/` - Job log files (gitignored)
+- `artifacts/` - Downloaded job outputs (gitignored)
 
 ## Utilities
+
+### Job Submission (`utils/job_submit_utils.py`)
+
+- **`submit_directory_job(...)`** - Submit directory-based jobs with automatic setup, monitoring, and artifact download
 
 ### Setup (`utils/setup.py`)
 
 - **`get_session_from_config(config_path=None)`** - Loads Snowflake session from `.snowflake/config.toml`
-- **`ensure_compute_pool_ready(session, target_pool, max_wait=60)`** - Ensures compute pool is `IDLE` or `RUNNING` (auto-resumes if `SUSPENDED`)
-- **`ensure_stage_exists(session, stage_name)`** - Creates stage if it doesn't exist
+- **`ensure_compute_pool_ready(session, target_pool, max_wait=60)`** - Ensures compute pool is ready
+- **`ensure_stage_exists(session, stage_name)`** - Creates stage if needed
 
 ### Debug/Logging (`utils/job_debug.py`)
 
-- **`wait_for_job(job, timeout=300)`** - Waits for job completion, handles timeouts gracefully
-- **`show_job_logs(job, tail_chars=6000)`** - prints tail of container logs
-- **`handle_job_result(job, timed_out=False)`** - Processes result based on status (`DONE`, `FAILED`, etc.)
-- **`diagnose_job_failure(error, session, session_params)`** - Detailed failure diagnostics (permissions, job history, container logs)
+- **`wait_for_job(job, timeout=300)`** - Waits for job completion
+- **`show_job_logs(job, tail_chars=6000)`** - Shows container logs
+- **`handle_job_result(job, timed_out=False)`** - Processes job results
+- **`diagnose_job_failure(error, session, session_params)`** - Failure diagnostics
 
-## Notes
+## Naming Convention
 
-- **Cold starts**: First job can take 2-5 minutes (Ray runtime boot). Use `timeout=300` minimum.
-- **Function isolation**: Keep remote functions simple. Avoid importing modules that aren't available in the container.
-- **Timeouts**: Timeouts are non-fatal - jobs continue running. Check Snowflake UI for final status.
-- **Permissions**: Requires `CREATE SERVICE` on schema, `USAGE` on compute pool, `WRITE` on stage, `MONITOR` for logs.
+- **`*_job.py`** - Job entrypoints executed remotely (use `argparse`, return via `__return__`)
+- **`*_submit.py`** - Submission scripts run locally (call `submit_directory_job()`)
 
-## Example
+## Examples
 
-See `src/jobs/test_submit_job.py` for a complete example.
+- `src/jobs/weather_ml_job.py` + `src/jobs/weather_ml_submit.py` - Directory-based job
+- `src/jobs/test_submit_job.py` - Legacy `@remote` decorator example
